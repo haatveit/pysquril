@@ -416,6 +416,8 @@ class SqliteQueryGenerator(SqlGenerator):
 
     def _gen_sql_update(self, term: SetTerm) -> str:
         key = term.parsed[0].select_term.bare_term
+        print(f"key: {key}")
+        print(f"data/payload: {self.data}")
         if not self.data or self.data.get(key) is None:
             raise ParseError(f'Target key of update: {key} not found in payload')
         new = json.dumps(self.data)
