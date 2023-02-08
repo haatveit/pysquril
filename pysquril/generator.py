@@ -419,7 +419,7 @@ class SqliteQueryGenerator(SqlGenerator):
         print(f"key: {key}")
         print(f"data/payload: {self.data}")
         if not self.data or self.data.get(key) is None:
-            raise ParseError(f'Target key of update: {key} not found in payload')
+            raise ParseError(f'Target key of update: {key} not found in payload {self.data}')
         new = json.dumps(self.data)
         return f"set data = json_patch(data, '{new}')"
 
