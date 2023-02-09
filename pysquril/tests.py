@@ -9,6 +9,7 @@ import tempfile
 from typing import Callable, Union
 
 import psycopg2
+import psycopg2.errors
 import psycopg2.extensions
 import psycopg2.pool
 import pytest
@@ -433,12 +434,12 @@ class TestSqlBackend(ABC):
 
         # try to retrieve deleted table
         select = self.backend.table_select(table_name=test_table, uri_query="")
-        with self.assertRaises((sqlite3.OperationalError, psycopg2.OperationalError)):
+        with self.assertRaises((sqlite3.OperationalError, psycopg2.errors.UndefinedTable)):
             next(select)
         
         # try to retrieve deleted table's audit table
         select = self.backend.table_select(table_name=f"{test_table}_audit", uri_query="")
-        with self.assertRaises((sqlite3.OperationalError, psycopg2.OperationalError)):
+        with self.assertRaises((sqlite3.OperationalError, psycopg2.errors.UndefinedTable)):
             next(select)
 
 class TestSqliteBackend(TestSqlBackend, unittest.TestCase):
