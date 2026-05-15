@@ -170,6 +170,17 @@ class AsyncGenericBackend(BackendCore):
                             session=session,
                         )
                         work_done["updates"].append(entry)
+                    if to_remove:
+                        keys = list(map(lambda x: f"-{x}", to_remove.keys()))
+                        set_query = f"set={','.join(keys)}&where={primary_key}=eq.{pk_value}"
+                        await self.table_update(
+                            table_name,
+                            set_query,
+                            data=None,
+                            tsc=tsc,
+                            session=session,
+                        )
+                        work_done["updates"].append(entry)
                 handled.append(pk_value)
 
         return work_done
