@@ -20,11 +20,11 @@ psycopg = {version = ">=3.1.0", optional = true, extras = ["pool"]}
 async = ["aiosqlite", "psycopg"]
 
 [tool.poetry.group.dev.dependencies]
-black = "^22.3.0"
 pytest = "^7.1.2"
 pytest-asyncio = "^0.21.0"
 pytest-cov = "^4.0.0"
 pytest-postgresql = "^6.0.0"
+ruff = ">=0.15.13"
 termcolor = "^1.1.0"
 
 
