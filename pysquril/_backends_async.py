@@ -466,6 +466,7 @@ class AsyncSqliteBackend(AsyncGenericBackend):
         table_name: str,
         data: Union[dict, list],
         session=None,
+        update_all_view: Optional[bool] = False,
         audit: bool = False,
     ) -> bool:
         """Insert data into table."""
@@ -505,6 +506,10 @@ class AsyncSqliteBackend(AsyncGenericBackend):
                             f"insert into {self._fqtn(audit_table(table_name))} values (json(?))",
                             (json.dumps(entry),),
                         )
+
+        if update_all_view:
+            await self._define_all_view(table_name)
+
         return True
 
     async def _yield_results(self, query: str) -> AsyncIterable[tuple]:
@@ -542,7 +547,7 @@ class AsyncPostgresBackend(AsyncGenericBackend):
     ) -> None:
         self.engine = engine
         self.verbose = verbose
-        self.table_definition = "(data jsonb unique not null)"
+        self.table_definition = "(data jsonb not null, uniq text unique not null)"
         self.schema = schema if schema else "public"
         self.sep = "."
         self.requestor = requestor
@@ -563,15 +568,16 @@ class AsyncPostgresBackend(AsyncGenericBackend):
         if no_schema:
             return f'"{table_name}"'
         schema = schema_name or self.schema
-        return f'"{schema}"."{table_name}"'
+        schema = '"all"' if schema == "all" else schema  # all is a reserved word
+        return f'{schema}{self.sep}"{table_name}"'
 
     async def _tables_in_schemas(self, table_name: str) -> list:
         """Return list of table instances across all schemas."""
         async with async_postgres_session(self.engine) as session:
             await session.execute(
-                f"""select schemaname || '.' || tablename from pg_tables
-                    where tablename like '{table_name}'
-                    and schemaname like '{self.schema_pattern}'
+                f"""select concat_ws('.', table_schema, concat('"', table_name, '"'))
+                    from information_schema.tables where table_schema
+                    like '{self.schema_pattern}%' and table_name = '{table_name}'
                 """
             )
             res = await session.fetchall()
@@ -584,35 +590,56 @@ class AsyncPostgresBackend(AsyncGenericBackend):
         session,
     ) -> None:
         """Create view for cross-schema queries."""
-        await session.execute(f"drop view if exists {view_name}")
-        await session.execute(f"create view {view_name} as {unions}")
+        await session.execute(f'create schema if not exists "all"')
+        await session.execute(f"create or replace view {view_name} as {unions}")
 
     async def initialise(self) -> Optional[bool]:
-        """Initialize database by creating schema if needed."""
-        async with async_postgres_session(self.engine) as session:
-            await session.execute(f'create schema if not exists "{self.schema}"')
+        """Initialize database by creating necessary functions and schema."""
+        try:
+            async with async_postgres_session(self.engine) as session:
+                for stmt in self.generator_class.db_init_sql:
+                    await session.execute(stmt)
+        except Exception:
+            pass  # throws a tuple concurrently updated when restarting many processes
         return True
 
     async def tables_list(
         self,
         exclude_endswith: list = [],
-        table_like: str = None,
+        only_endswith: Optional[str] = None,
+        remove_pattern: Optional[str] = None,
+        table_like: Optional[str] = "",
     ) -> list:
         """List all tables in the schema."""
-        pattern = table_like.replace("*", "%") if table_like else "%"
-        async with async_postgres_session(self.engine) as session:
-            await session.execute(
-                f"""select tablename from pg_tables
-                    where schemaname = '{self.schema}'
-                    and tablename like '{pattern}'
-                """
-            )
-            tables = await session.fetchall()
+        table_like_filter = ""
+        if table_like:
+            pattern = table_like.replace("*", "%")
+            table_like_filter = f"and table_name like '{pattern}'"
+        query = f"""select table_name from information_schema.tables
+            where table_schema = '{self.schema}' {table_like_filter} order by table_name asc"""
 
-        tables = [table[0] for table in tables]
-        for pattern in exclude_endswith:
-            tables = [t for t in tables if not t.endswith(pattern)]
-        return tables
+        async with async_postgres_session(self.engine) as session:
+            await session.execute(query)
+            res = await session.fetchall()
+
+        if not res:
+            return []
+        else:
+            out = []
+            for row in res:
+                name = row[0]
+                exclude = False
+                if only_endswith:
+                    if not name.endswith(only_endswith):
+                        exclude = True
+                for ends_with in exclude_endswith:
+                    if name.endswith(ends_with):
+                        exclude = True
+                if not exclude:
+                    if remove_pattern and remove_pattern in name:
+                        name = name.replace(remove_pattern, "")
+                    out.append(name)
+            return out
 
     async def table_create(
         self,
@@ -620,10 +647,25 @@ class AsyncPostgresBackend(AsyncGenericBackend):
         session,
     ) -> bool:
         """Create a new table."""
-        table_name_fqtn = self._fqtn(table_name)
+        table_create = f"create table if not exists {self._fqtn(table_name)}{self.table_definition}"
+        trigger_create = f"""
+            create trigger ensure_unique_data before insert
+            on {self.schema}{self.sep}"{table_name}"
+            for each row execute procedure unique_data()
+        """
+
+        # Check if table exists
         await session.execute(
-            f"create table if not exists {table_name_fqtn} {self.table_definition}"
+            f"select exists(select from pg_tables where schemaname = '{self.schema}' and tablename = '{table_name}')"
         )
+        result = await session.fetchone()
+        exists = result[0] if result else False
+
+        if not exists:
+            await session.execute(f"create schema if not exists {self.schema}")
+            await session.execute(table_create)
+            await session.execute(trigger_create)
+
         return True
 
     async def table_insert(
@@ -631,6 +673,7 @@ class AsyncPostgresBackend(AsyncGenericBackend):
         table_name: str,
         data: Union[dict, list],
         session=None,
+        update_all_view: Optional[bool] = False,
         audit: bool = False,
     ) -> bool:
         """Insert data into table."""
@@ -672,6 +715,10 @@ class AsyncPostgresBackend(AsyncGenericBackend):
                             f"insert into {self._fqtn(audit_table(table_name))} values (%s::jsonb)",
                             (json.dumps(entry),),
                         )
+
+        if update_all_view:
+            await self._define_all_view(table_name)
+
         return True
 
     async def _yield_results(self, query: str) -> AsyncIterable[tuple]:
