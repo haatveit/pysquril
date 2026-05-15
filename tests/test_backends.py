@@ -19,7 +19,7 @@ import pytest
 
 from termcolor import colored
 
-from pysquril.backends import (
+from pysquril import (
     SqliteBackend,
     PostgresBackend,
     GenericBackend,
