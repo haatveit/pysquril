@@ -115,17 +115,16 @@ def postgres_config(postgresql):
 
 
 @pytest.fixture
-async def async_postgres_config(postgresql):
+async def async_postgres_config(postgresql_proc):
     """
     Provide PostgreSQL configuration for async tests.
 
-    Same as postgres_config but explicitly marked as async-compatible.
+    Uses the already-created "tests" database from set_postgres_env_vars fixture.
     """
-    info = postgresql.info
-
     return {
-        "dbname": info.dbname,
-        "user": info.user,
-        "pw": info.password or "",
-        "host": info.host,
+        "dbname": "tests",
+        "user": postgresql_proc.user,
+        "pw": "",
+        "host": postgresql_proc.host,
+        "port": str(postgresql_proc.port),
     }
