@@ -1,11 +1,11 @@
 """
-Public API for pysquril database backends.
+DEPRECATED: This module will be removed in pysquril 2.0.
 
-This module provides the public interface for synchronous database backends.
-External applications should import from this module, not from internal
-modules (those prefixed with underscore).
+Import directly from the pysquril package instead:
+    from pysquril import SqliteBackend, PostgresBackend
 
-Usage:
+This module contains reexports of pysquril sync database backends symbols,
+to support implementing applications with imports like these:
     from pysquril.backends import SqliteBackend, PostgresBackend
 
 The actual implementations are in internal modules:
@@ -13,40 +13,44 @@ The actual implementations are in internal modules:
 - _backends_sync: Synchronous I/O implementations
 - _connection: Connection management
 
-This module re-exports everything to maintain backwards compatibility.
+This module re-exports what used to be here to maintain backwards compatibility.
 """
 
+import warnings
+
+# Emit deprecation warning when this module is imported
+warnings.warn(
+    "Importing from 'pysquril.backends' is deprecated and will be removed in pysquril 2.0. "
+    + "Import directly from 'pysquril' instead: from pysquril import SqliteBackend, PostgresBackend",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 # Import from internal modules
-from pysquril._backends_core import (
+from pysquril import (
     AuditTransaction,
     DatabaseBackend,
-    BackendCore,
-)
-from pysquril._backends_sync import (
     GenericBackend,
     SqliteBackend,
     PostgresBackend,
-)
-from pysquril._connection import (
     sqlite_init,
     postgres_init,
     sqlite_session,
     postgres_session,
 )
 
-# Re-export everything for backwards compatibility
+# Re-export functions and classes that used to be here for backwards compatibility
 __all__ = [
-    # Core classes
-    "AuditTransaction",
-    "DatabaseBackend",
-    "BackendCore",
-    # Sync backends
-    "GenericBackend",
-    "SqliteBackend",
-    "PostgresBackend",
     # Connection utilities
     "sqlite_init",
     "postgres_init",
     "sqlite_session",
     "postgres_session",
+    # Core classes
+    "AuditTransaction",
+    "DatabaseBackend",
+    # Sync backends
+    "GenericBackend",
+    "SqliteBackend",
+    "PostgresBackend",
 ]
