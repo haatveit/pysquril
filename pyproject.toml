@@ -10,7 +10,7 @@ authors = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = ">=3.9"
 psycopg2 = ">=2.9.3"
 # Async dependencies (optional)
 aiosqlite = {version = ">=0.19.0", optional = true}
@@ -20,12 +20,12 @@ psycopg = {version = ">=3.1.0", optional = true, extras = ["pool"]}
 async = ["aiosqlite", "psycopg"]
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^7.1.2"
-pytest-asyncio = "^0.21.0"
-pytest-cov = "^4.0.0"
-pytest-postgresql = "^6.0.0"
+pytest = ">=7.1.2"
+pytest-asyncio = ">=0.21.0"
+pytest-cov = ">=4.0.0"
+pytest-postgresql = ">=6.0.0"
 ruff = ">=0.15.13"
-termcolor = "^1.1.0"
+termcolor = ">=1.1.0"
 
 
 [build-system]
