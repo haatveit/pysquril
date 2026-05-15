@@ -1,4 +1,4 @@
-name: Run package tests 
+name: Run package tests
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
       - ".github/workflows/tests.yaml"
 
 env:
-  POETRY_VERSION: 1.5.1
+  POETRY_VERSION: 2.4.1
   PYSQURIL_POSTGRES_DB: pysquril_db
   PYSQURIL_POSTGRES_USER: pysquril_user
   PYSQURIL_POSTGRES_PASSWORD: pysquril_password
