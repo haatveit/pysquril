@@ -1,11 +1,6 @@
 """
-Public API for pysquril database backends.
-
-This module provides the public interface for synchronous database backends.
-External applications should import from this module, not from internal
-modules (those prefixed with underscore).
-
-Usage:
+Legacy imports for pysquril sync database backends, to support imports
+like this:
     from pysquril.backends import SqliteBackend, PostgresBackend
 
 The actual implementations are in internal modules:
@@ -14,39 +9,34 @@ The actual implementations are in internal modules:
 - _connection: Connection management
 
 This module re-exports everything to maintain backwards compatibility.
+It will be removed in pysquril 2.0.
 """
 
 # Import from internal modules
-from pysquril._backends_core import (
+from pysquril import (
     AuditTransaction,
     DatabaseBackend,
-    BackendCore,
-)
-from pysquril._backends_sync import (
     GenericBackend,
     SqliteBackend,
     PostgresBackend,
-)
-from pysquril._connection import (
     sqlite_init,
     postgres_init,
     sqlite_session,
     postgres_session,
 )
 
-# Re-export everything for backwards compatibility
+# Re-export functions and classes that used to be here for backwards compatibility
 __all__ = [
-    # Core classes
-    "AuditTransaction",
-    "DatabaseBackend",
-    "BackendCore",
-    # Sync backends
-    "GenericBackend",
-    "SqliteBackend",
-    "PostgresBackend",
     # Connection utilities
     "sqlite_init",
     "postgres_init",
     "sqlite_session",
     "postgres_session",
+    # Core classes
+    "AuditTransaction",
+    "DatabaseBackend",
+    # Sync backends
+    "GenericBackend",
+    "SqliteBackend",
+    "PostgresBackend",
 ]

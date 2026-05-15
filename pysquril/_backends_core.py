@@ -1,13 +1,8 @@
 """
 Internal core backend module containing shared business logic.
 
-This module is internal (underscore prefix) and should not be imported directly
-by external applications. Use the public API from pysquril.backends instead.
-
-Contains:
-- AuditTransaction: Audit event generation
-- DatabaseBackend: Abstract base class for all backends
-- BackendCore: Shared business logic for sync and async backends
+This module is internal and should not be imported directly by external
+applications. Use the public APIs from pysquril.__all__ instead.
 """
 
 import datetime
