@@ -54,4 +54,4 @@ jobs:
           poetry env use ${{ matrix.python-version }}
           poetry install
       - name: Test with pytest
-        run: poetry run pytest pysquril/tests.py
+        run: poetry run pytest
