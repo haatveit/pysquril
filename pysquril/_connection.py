@@ -32,20 +32,29 @@ def sqlite_init(path: str) -> sqlite3.Connection:
     return engine
 
 
-def postgres_init(dbconfig: dict) -> psycopg2.pool.SimpleConnectionPool:
+def postgres_init(
+    dbconfig: dict,
+    min_conn: int = 1,
+    max_conn: int = 5
+) -> psycopg2.pool.SimpleConnectionPool:
     """
     Initialize a synchronous PostgreSQL connection pool.
 
     Args:
-        dbconfig: Dictionary with keys: dbname, user, pw, host
+        dbconfig: Dictionary with keys: dbname, user, pw, host, and optional port
+        min_conn: Minimum number of connections in pool (default: 1)
+        max_conn: Maximum number of connections in pool (default: 5)
 
     Returns:
         PostgreSQL connection pool
     """
-    min_conn = 2
-    max_conn = 5
-    dsn = f"dbname={dbconfig['dbname']} user={dbconfig['user']} password={dbconfig['pw']} host={dbconfig['host']}"
-    pool = psycopg2.pool.SimpleConnectionPool(min_conn, max_conn, dsn)
+    conninfo = f"dbname={dbconfig['dbname']} user={dbconfig['user']} password={dbconfig['pw']} host={dbconfig['host']}"
+
+    # Add port if specified
+    if 'port' in dbconfig and dbconfig['port']:
+        conninfo += f" port={dbconfig['port']}"
+
+    pool = psycopg2.pool.SimpleConnectionPool(min_conn, max_conn, conninfo)
     return pool
 
 
@@ -129,12 +138,18 @@ async def async_sqlite_init(path: str):
     return engine
 
 
-async def async_postgres_init(dbconfig: dict):
+async def async_postgres_init(
+    dbconfig: dict,
+    min_conn: int = 1,
+    max_conn: int = 5
+):
     """
     Initialize an asynchronous PostgreSQL connection pool.
 
     Args:
-        dbconfig: Dictionary with keys: dbname, user, pw, host
+        dbconfig: Dictionary with keys: dbname, user, pw, host, and optional port
+        min_conn: Minimum number of connections in pool (default: 1)
+        max_conn: Maximum number of connections in pool (default: 5)
 
     Returns:
         Async PostgreSQL connection pool (psycopg_pool.AsyncConnectionPool)
@@ -147,9 +162,11 @@ async def async_postgres_init(dbconfig: dict):
             "Install with: pip install pysquril[async]"
         )
 
-    min_conn = 2
-    max_conn = 5
     conninfo = f"dbname={dbconfig['dbname']} user={dbconfig['user']} password={dbconfig['pw']} host={dbconfig['host']}"
+
+    # Add port if specified
+    if 'port' in dbconfig and dbconfig['port']:
+        conninfo += f" port={dbconfig['port']}"
 
     pool = AsyncConnectionPool(conninfo=conninfo, min_size=min_conn, max_size=max_conn)
     await pool.open()
