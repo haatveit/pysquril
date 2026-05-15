@@ -1,19 +1,16 @@
-name: Run package tests 
+name: Run package tests
 
 on:
   push:
     paths:
       - "pysquril/**"
+      - "tests/**"
       - "pyproject.toml"
       - "poetry.lock"
       - ".github/workflows/tests.yaml"
 
 env:
-  POETRY_VERSION: 1.5.1
-  PYSQURIL_POSTGRES_DB: pysquril_db
-  PYSQURIL_POSTGRES_USER: pysquril_user
-  PYSQURIL_POSTGRES_PASSWORD: pysquril_password
-  PYSQURIL_POSTGRES_HOST: localhost
+  POETRY_VERSION: 2.4.1
 
 
 jobs:
@@ -21,30 +18,18 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
-
-    services:
-      postgres:
-        image: docker.io/postgres:14
-        env:
-          POSTGRES_DB: ${{env.PYSQURIL_POSTGRES_DB}}
-          POSTGRES_USER: ${{env.PYSQURIL_POSTGRES_USER}}
-          POSTGRES_PASSWORD: ${{env.PYSQURIL_POSTGRES_PASSWORD}}
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 127.0.0.1:5432:5432
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        include:
+          - python-version: "3.14"
+            is_latest: true
 
     steps:
       - name: Checkout the repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
       - name: Install Poetry
         run: pipx install poetry==${{env.POETRY_VERSION}}
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: "poetry"
@@ -52,6 +37,24 @@ jobs:
       - name: Install package dependencies
         run: |
           poetry env use ${{ matrix.python-version }}
-          poetry install
+          poetry install -E async
       - name: Test with pytest
-        run: poetry run pytest pysquril/tests.py
+        run: poetry run pytest --cov=pysquril --cov-report=term --cov-report=html
+
+      # Generate coverage summary in workflow run summary (only for latest Python)
+      - name: Generate coverage summary
+        if: matrix.is_latest
+        run: |
+          echo "## Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          poetry run coverage report >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      # Upload HTML coverage report as downloadable artifact
+      - name: Upload coverage HTML
+        if: matrix.is_latest
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-html-report
+          path: htmlcov/
