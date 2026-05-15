@@ -318,15 +318,10 @@ class AsyncGenericBackend(BackendCore):
 
         # Build audit trail
         audit_data = []
-        async for result in self.table_select(table_name, uri_query):
-            keys = list(data.keys())
-            for key in keys:
-                current_value = result.get(key)
-                diff = {key: data.get(key)}
-                previous = {key: current_value}
-                audit_data.append(
-                    tsc.event_update(diff=diff, previous=previous, query=uri_query)
-                )
+        async for val in self.table_select(table_name, uri_query, data=data):
+            audit_data.append(
+                tsc.event_update(diff=data, previous=val, query=uri_query)
+            )
 
         if session:
             await self._do_update(session, sql.update_query)
