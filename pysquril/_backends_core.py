@@ -11,24 +11,19 @@ Contains:
 """
 
 import datetime
-import json
-import logging
 import sqlite3
-import uuid
 
 from abc import ABC, abstractmethod
 from datetime import timedelta
 from typing import Union, Iterable, Optional, Any, Callable
-from urllib.parse import unquote
 from uuid import uuid4
 
 import psycopg2
 import psycopg2.extensions
 import psycopg2.errors
+import psycopg2.pool
 
-from pysquril.exc import DataIntegrityError, OperationNotPermittedError
 from pysquril.generator import SqliteQueryGenerator, PostgresQueryGenerator
-from pysquril.utils import audit_table, audit_table_src, AUDIT_SEPARATOR, AUDIT_SUFFIX
 
 
 class AuditTransaction(object):
