@@ -1,8 +1,11 @@
 """
 Internal asynchronous backend implementations.
 
+INTERNAL MODULE - DO NOT IMPORT DIRECTLY.
 This module is internal (underscore prefix) and should not be imported directly
-by external applications. Use the public API from pysquril package __init__.py.
+by applications. Import from the top-level pysquril package instead:
+
+    from pysquril import AsyncSqliteBackend, AsyncPostgresBackend, AsyncGenericBackend
 
 Contains async implementations of:
 - AsyncGenericBackend: Common async I/O operations

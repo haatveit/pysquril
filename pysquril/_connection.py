@@ -1,8 +1,18 @@
 """
 Internal connection and session management module.
 
+INTERNAL MODULE - DO NOT IMPORT DIRECTLY.
 This module is internal (underscore prefix) and should not be imported directly
-by external applications. Use the public API from pysquril.backends instead.
+by applications. Import from the top-level pysquril package instead:
+
+    from pysquril import (
+        sqlite_init, postgres_init, sqlite_session, postgres_session,
+        async_sqlite_init, async_postgres_init, async_sqlite_session, async_postgres_session
+    )
+
+Contains:
+- Synchronous connection initialization and session management for SQLite/PostgreSQL
+- Asynchronous connection initialization and session management for SQLite/PostgreSQL
 """
 
 import sqlite3

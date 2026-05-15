@@ -1,8 +1,11 @@
 """
 Internal synchronous backend implementations.
 
+INTERNAL MODULE - DO NOT IMPORT DIRECTLY.
 This module is internal (underscore prefix) and should not be imported directly
-by external applications. Use the public API from pysquril.backends instead.
+by applications. Import from the top-level pysquril package instead:
+
+    from pysquril import SqliteBackend, PostgresBackend, GenericBackend
 
 Contains sync implementations of:
 - GenericBackend: Common sync I/O operations
