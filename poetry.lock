@@ -45,7 +45,6 @@ mypy-extensions = ">=0.4.3"
 pathspec = ">=0.9.0"
 platformdirs = ">=2"
 tomli = {version = ">=1.1.0", markers = "python_full_version < \"3.11.0a7\""}
-typing-extensions = {version = ">=3.10.0.0", markers = "python_version < \"3.10\""}
 
 [package.extras]
 colorama = ["colorama (>=0.4.3)"]
@@ -208,7 +207,7 @@ description = "Backport of PEP 654 (exception groups)"
 optional = false
 python-versions = ">=3.7"
 groups = ["dev"]
-markers = "python_version < \"3.11\""
+markers = "python_version == \"3.10\""
 files = [
     {file = "exceptiongroup-1.2.2-py3-none-any.whl", hash = "sha256:3111b9d131c238bec2f8f516e123e14ba243563fb135d3fe885990585aa7795b"},
     {file = "exceptiongroup-1.2.2.tar.gz", hash = "sha256:47c2edf7c6738fafb49fd34290706d1a1a2f4d1c6df275526b62cbb4aa5393cc"},
@@ -578,5 +577,5 @@ async = ["aiosqlite", "psycopg"]
 
 [metadata]
 lock-version = "2.1"
-python-versions = "^3.9"
-content-hash = "a0466ee101ec0936150a2575f923e4a1aed2931a38320430fdd826e25f20a6b7"
+python-versions = ">=3.10"
+content-hash = "3823a37e80fa6b1d348294e90cd9fa068a638ec6f4daaedd3d683961ed5b93fb"
