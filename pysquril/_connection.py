@@ -58,13 +58,19 @@ def postgres_init(
     Returns:
         PostgreSQL connection pool
     """
-    conninfo = f"dbname={dbconfig['dbname']} user={dbconfig['user']} password={dbconfig['pw']} host={dbconfig['host']}"
+    # Build connection parameters as kwargs (more reliable than DSN string for psycopg2)
+    conn_params = {
+        "dbname": dbconfig['dbname'],
+        "user": dbconfig['user'],
+        "password": dbconfig['pw'],
+        "host": dbconfig['host'],
+    }
 
     # Add port if specified
     if 'port' in dbconfig and dbconfig['port']:
-        conninfo += f" port={dbconfig['port']}"
+        conn_params["port"] = dbconfig['port']
 
-    pool = psycopg2.pool.SimpleConnectionPool(min_conn, max_conn, conninfo)
+    pool = psycopg2.pool.SimpleConnectionPool(min_conn, max_conn, **conn_params)
     return pool
 
 
@@ -172,13 +178,19 @@ async def async_postgres_init(
             "Install with: pip install pysquril[async]"
         )
 
-    conninfo = f"dbname={dbconfig['dbname']} user={dbconfig['user']} password={dbconfig['pw']} host={dbconfig['host']}"
+    # Build connection parameters as kwargs (consistent with sync version)
+    conn_params = {
+        "dbname": dbconfig['dbname'],
+        "user": dbconfig['user'],
+        "password": dbconfig['pw'],
+        "host": dbconfig['host'],
+    }
 
     # Add port if specified
     if 'port' in dbconfig and dbconfig['port']:
-        conninfo += f" port={dbconfig['port']}"
+        conn_params["port"] = dbconfig['port']
 
-    pool = AsyncConnectionPool(conninfo=conninfo, min_size=min_conn, max_size=max_conn)
+    pool = AsyncConnectionPool(kwargs=conn_params, min_size=min_conn, max_size=max_conn)
     await pool.open()
     return pool
 
