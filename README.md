@@ -104,8 +104,10 @@ assert result[0][0] == "good"
 
 ```bash
 poetry install
-poetry run pytest -vs --durations=0 pysquril/tests.py
+poetry run pytest tests/
 ```
+
+For more detailed testing information, including PostgreSQL setup requirements, see [tests/README.md](tests/README.md).
 
 ## Generating docs
 

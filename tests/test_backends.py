@@ -39,7 +39,7 @@ from pysquril.parser import (
     AlterClause,
     UriQuery,
 )
-from pysquril.test_data import dataset
+from test_data import dataset
 from pysquril.utils import audit_table, AUDIT_SEPARATOR, AUDIT_SUFFIX
 
 
@@ -766,6 +766,7 @@ class TestBackends(object):
                     "user": os.environ.get("PYSQURIL_POSTGRES_USER", "pysquril_user"),
                     "pw": os.environ.get("PYSQURIL_POSTGRES_PASSWORD", ""),
                     "host": os.environ.get("PYSQURIL_POSTGRES_HOST", "localhost"),
+                    "port": os.environ.get("PYSQURIL_POSTGRES_PORT", "5432"),
                 }
             )
             pg_backend = PostgresBackend(pool)
@@ -1145,6 +1146,7 @@ class TestPostgresBackend(TestSqlBackend):
                 "user": os.environ.get("PYSQURIL_POSTGRES_USER", "pysquril_user"),
                 "pw": os.environ.get("PYSQURIL_POSTGRES_PASSWORD", ""),
                 "host": os.environ.get("PYSQURIL_POSTGRES_HOST", "localhost"),
+                "port": os.environ.get("PYSQURIL_POSTGRES_PORT", "5432"),
             }
         )
         self.backend = PostgresBackend(
