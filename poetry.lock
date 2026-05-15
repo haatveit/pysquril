@@ -515,4 +515,4 @@ async = ["aiosqlite", "psycopg"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10"
-content-hash = "689bbb790fc6deb69000555fc158b76be42fd0053a412bb42c3d5be03ccfaf32"
+content-hash = "d6c23914e03247b07f97d951a7fb76b07421a8fe7e925ed9258ac159104b70eb"
