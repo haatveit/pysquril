@@ -336,29 +336,53 @@ class AsyncGenericBackend(BackendCore):
 
         if session:
             await self._do_update(session, sql.update_query)
-            await self.table_create(audit_table(table_name), session)
             await self.table_insert(audit_table(table_name), audit_data, session)
         else:
             async with self._session_func()(self.engine) as session:
                 await self._do_update(session, sql.update_query)
-                await self.table_create(audit_table(table_name), session)
-                await self.table_insert(audit_table(table_name), audit_data, session)
+            await self.table_insert(audit_table(table_name), audit_data)
 
         return True
 
     async def table_alter(self, table_name: str, uri_query: str) -> dict:
-        """Rename table."""
-        sql = self.generator_class(f"{self._fqtn(table_name)}", uri_query)
-        old_table_name = self._fqtn(table_name)
-        new_table_name = self._fqtn(sql.parsed_uri_query.rename)
+        """Alter the name of a table, and its audit table (if it exists)."""
+        from pysquril.exc import OperationNotPermittedError
+
+        # Protection: Cannot alter audit tables directly
+        if await self._is_audit_table(table_name):
+            raise OperationNotPermittedError("audit tables cannot be altered directly")
+
+        sql = self.generator_class(
+            f"{self._fqtn(table_name)}",
+            uri_query,
+            table_name_func=self._fqtn,
+        )
 
         async with self._session_func()(self.engine) as session:
             await session.execute(sql.alter_query)
 
-        return {
-            "old_table_name": old_table_name,
-            "new_table_name": new_table_name,
-        }
+        # Return structure matches sync version
+        altered = {"tables": [table_name]}
+
+        # Try to alter audit table too
+        try:
+            import aiosqlite
+            import psycopg.errors
+
+            audit_table_name = audit_table(table_name)
+            sql = self.generator_class(
+                f"{self._fqtn(audit_table_name)}",
+                uri_query,
+                table_name_func=self._fqtn,
+                audit=True,
+            )
+            async with self._session_func()(self.engine) as session:
+                await session.execute(sql.alter_query)
+            altered["tables"].append(audit_table_name)
+        except (psycopg.errors.UndefinedTable, aiosqlite.OperationalError):
+            pass  # Audit table doesn't exist, that's okay
+
+        return altered
 
 
 class AsyncSqliteBackend(AsyncGenericBackend):
@@ -432,27 +456,51 @@ class AsyncSqliteBackend(AsyncGenericBackend):
     async def tables_list(
         self,
         exclude_endswith: list = [],
-        table_like: str = None,
+        only_endswith: Optional[str] = None,
+        remove_pattern: Optional[str] = None,
+        table_like: Optional[str] = "",
     ) -> list:
         """List all tables in the database."""
-        pattern = table_like.replace("*", "%") if table_like else "%"
-        async with async_sqlite_session(self.engine) as session:
-            await session.execute(
-                f"""select name from sqlite_master where type = 'table'
-                    and name like '{pattern}'
-                """
-            )
-            tables = await session.fetchall()
+        table_like_filter = ""
+        if table_like:
+            pattern = table_like.replace("*", "%")
+            table_like_filter = f"and name like '{pattern}'"
 
-        tables = [table[0] for table in tables]
-        for pattern in exclude_endswith:
-            tables = [t for t in tables if not t.endswith(pattern)]
-        return tables
+        query = f"select name FROM sqlite_master where type = 'table' {table_like_filter} order by name asc"
+
+        async with async_sqlite_session(self.engine) as session:
+            await session.execute(query)
+            res = await session.fetchall()
+
+        if not res:
+            return []
+        else:
+            out = []
+            for row in res:
+                name = row[0]
+                exclude = False
+
+                # only_endswith filtering
+                if only_endswith:
+                    if not name.endswith(only_endswith):
+                        exclude = True
+
+                # exclude_endswith filtering
+                for ends_with in exclude_endswith:
+                    if name.endswith(ends_with):
+                        exclude = True
+
+                if not exclude:
+                    # remove_pattern filtering
+                    name = name.replace(remove_pattern, "") if remove_pattern else name
+                    out.append(name)
+
+            return out
 
     async def table_create(
         self,
         table_name: str,
-        session,
+        session: "aiosqlite.Cursor",
     ) -> bool:
         """Create a new table."""
         table_name = self._fqtn(table_name)
@@ -470,47 +518,59 @@ class AsyncSqliteBackend(AsyncGenericBackend):
         audit: bool = False,
     ) -> bool:
         """Insert data into table."""
-        data = [data] if isinstance(data, dict) else data
-        table_name_fqtn = self._fqtn(table_name)
+        import aiosqlite
+        import logging
 
-        if session:
-            await self.table_create(table_name, session)
-            for entry in data:
-                await session.execute(
-                    f"insert into {table_name_fqtn} values (json(?))",
-                    (json.dumps(entry),),
-                )
-            if audit:
-                tsc = AuditTransaction(self.requestor, "", self.requestor_name)
-                audit_data = [tsc.event_create(diff=entry) for entry in data]
-                await self.table_create(audit_table(table_name), session)
-                for entry in audit_data:
-                    await session.execute(
-                        f"insert into {self._fqtn(audit_table(table_name))} values (json(?))",
-                        (json.dumps(entry),),
-                    )
-        else:
-            async with async_sqlite_session(self.engine) as session:
-                await self.table_create(table_name, session)
+        try:
+            data = [data] if isinstance(data, dict) else data
+            table_name_fqtn = self._fqtn(table_name)
+
+            if session:
+                # Session provided - caller handles exceptions
                 for entry in data:
                     await session.execute(
                         f"insert into {table_name_fqtn} values (json(?))",
                         (json.dumps(entry),),
                     )
-                if audit:
-                    tsc = AuditTransaction(self.requestor, "", self.requestor_name)
-                    audit_data = [tsc.event_create(diff=entry) for entry in data]
-                    await self.table_create(audit_table(table_name), session)
-                    for entry in audit_data:
-                        await session.execute(
-                            f"insert into {self._fqtn(audit_table(table_name))} values (json(?))",
-                            (json.dumps(entry),),
-                        )
+            else:
+                # No session - handle table creation retry logic
+                try:
+                    async with async_sqlite_session(self.engine) as session:
+                        for entry in data:
+                            await session.execute(
+                                f"insert into {table_name_fqtn} values (json(?))",
+                                (json.dumps(entry),),
+                            )
+                except (aiosqlite.ProgrammingError, aiosqlite.OperationalError) as e:
+                    # Table doesn't exist - create and retry
+                    async with async_sqlite_session(self.engine) as session:
+                        await self.table_create(table_name, session)
+                        for entry in data:
+                            await session.execute(
+                                f"insert into {table_name_fqtn} values (json(?))",
+                                (json.dumps(entry),),
+                            )
+                    if update_all_view:
+                        await self._define_all_view(table_name)
 
-        if update_all_view:
-            await self._define_all_view(table_name)
+            if audit:
+                tsc = AuditTransaction(self.requestor, "", self.requestor_name)
+                audit_data = [tsc.event_create(diff=entry) for entry in data]
+                await self.table_insert(audit_table(table_name), audit_data)
 
-        return True
+            return True
+        except aiosqlite.IntegrityError as e:
+            logging.info("Ignoring duplicate row")
+            return True  # idempotent PUT
+        except aiosqlite.ProgrammingError as e:
+            logging.error("Syntax error?")
+            raise e
+        except aiosqlite.OperationalError as e:
+            logging.error("Database issue")
+            raise e
+        except Exception as e:
+            logging.error("Not sure what went wrong")
+            raise e
 
     async def _yield_results(self, query: str) -> AsyncIterable[tuple]:
         """Execute query and yield results."""
@@ -521,8 +581,8 @@ class AsyncSqliteBackend(AsyncGenericBackend):
                     yield json.loads(row[0])
 
     async def _do_update(self, session, query: str) -> None:
-        """Execute update query."""
-        await session.execute(query)
+        """Execute update query (may contain multiple statements)."""
+        await session.executescript(query)
 
 
 class AsyncPostgresBackend(AsyncGenericBackend):
@@ -636,15 +696,14 @@ class AsyncPostgresBackend(AsyncGenericBackend):
                     if name.endswith(ends_with):
                         exclude = True
                 if not exclude:
-                    if remove_pattern and remove_pattern in name:
-                        name = name.replace(remove_pattern, "")
+                    name = name.replace(remove_pattern, "") if remove_pattern else name
                     out.append(name)
             return out
 
     async def table_create(
         self,
         table_name: str,
-        session,
+        session: "psycopg.AsyncCursor",
     ) -> bool:
         """Create a new table."""
         table_create = f"create table if not exists {self._fqtn(table_name)}{self.table_definition}"
@@ -678,48 +737,59 @@ class AsyncPostgresBackend(AsyncGenericBackend):
     ) -> bool:
         """Insert data into table."""
         import psycopg
+        import psycopg.errors
+        import logging
 
-        data = [data] if isinstance(data, dict) else data
-        table_name_fqtn = self._fqtn(table_name)
+        try:
+            data = [data] if isinstance(data, dict) else data
+            table_name_fqtn = self._fqtn(table_name)
 
-        if session:
-            await self.table_create(table_name, session)
-            for entry in data:
-                await session.execute(
-                    f"insert into {table_name_fqtn} values (%s::jsonb)",
-                    (json.dumps(entry),),
-                )
-            if audit:
-                tsc = AuditTransaction(self.requestor, "", self.requestor_name)
-                audit_data = [tsc.event_create(diff=entry) for entry in data]
-                await self.table_create(audit_table(table_name), session)
-                for entry in audit_data:
-                    await session.execute(
-                        f"insert into {self._fqtn(audit_table(table_name))} values (%s::jsonb)",
-                        (json.dumps(entry),),
-                    )
-        else:
-            async with async_postgres_session(self.engine) as session:
-                await self.table_create(table_name, session)
+            if session:
+                # Session provided - caller handles exceptions
                 for entry in data:
                     await session.execute(
                         f"insert into {table_name_fqtn} values (%s::jsonb)",
                         (json.dumps(entry),),
                     )
-                if audit:
-                    tsc = AuditTransaction(self.requestor, "", self.requestor_name)
-                    audit_data = [tsc.event_create(diff=entry) for entry in data]
-                    await self.table_create(audit_table(table_name), session)
-                    for entry in audit_data:
-                        await session.execute(
-                            f"insert into {self._fqtn(audit_table(table_name))} values (%s::jsonb)",
-                            (json.dumps(entry),),
-                        )
+            else:
+                # No session - handle table creation retry logic
+                try:
+                    async with async_postgres_session(self.engine) as session:
+                        for entry in data:
+                            await session.execute(
+                                f"insert into {table_name_fqtn} values (%s::jsonb)",
+                                (json.dumps(entry),),
+                            )
+                except (psycopg.errors.UndefinedTable, psycopg.errors.OperationalError) as e:
+                    # Table doesn't exist - create and retry
+                    async with async_postgres_session(self.engine) as session:
+                        await self.table_create(table_name, session)
+                        for entry in data:
+                            await session.execute(
+                                f"insert into {table_name_fqtn} values (%s::jsonb)",
+                                (json.dumps(entry),),
+                            )
+                    if update_all_view:
+                        await self._define_all_view(table_name)
 
-        if update_all_view:
-            await self._define_all_view(table_name)
+            if audit:
+                tsc = AuditTransaction(self.requestor, "", self.requestor_name)
+                audit_data = [tsc.event_create(diff=entry) for entry in data]
+                await self.table_insert(audit_table(table_name), audit_data)
 
-        return True
+            return True
+        except psycopg.errors.UniqueViolation as e:
+            logging.info("Ignoring duplicate row")
+            return True  # idempotent PUT
+        except psycopg.errors.SyntaxError as e:
+            logging.error("Syntax error?")
+            raise e
+        except psycopg.errors.OperationalError as e:
+            logging.error("Database issue")
+            raise e
+        except Exception as e:
+            logging.error("Not sure what went wrong")
+            raise e
 
     async def _yield_results(self, query: str) -> AsyncIterable[tuple]:
         """Execute query and yield results."""
