@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - "pysquril/**"
+      - "tests/**"
       - "pyproject.toml"
       - "poetry.lock"
       - ".github/workflows/tests.yaml"
