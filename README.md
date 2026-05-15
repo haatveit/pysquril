@@ -44,7 +44,7 @@ pysquril % poetry run python
 ```python
 import sqlite3
 
-from pysquril.backends import SqliteBackend, sqlite_init
+from pysquril import SqliteBackend, sqlite_init
 
 # get a connection pool
 # most real world usage would use persistent storage

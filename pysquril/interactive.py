@@ -1,10 +1,9 @@
-
 from typing import Optional
 
-from pysquril.backends import SqliteBackend, sqlite_init, PostgresBackend
+from pysquril import SqliteBackend, sqlite_init, PostgresBackend
+
 
 class B(object):
-
     """
     A backend for running interactive pysquril select queries -
     a tool for understanding the query language and the library
@@ -77,7 +76,8 @@ class B(object):
 
         """
         self.backend.table_insert(
-            table_name=self.table_name, data=data,
+            table_name=self.table_name,
+            data=data,
         )
         return self
 
@@ -91,7 +91,8 @@ class B(object):
             print(query)
         result = list(
             self.backend.table_select(
-                table_name=self.table_name, uri_query=query,
+                table_name=self.table_name,
+                uri_query=query,
             )
         )
         print(result)
@@ -106,11 +107,14 @@ class B(object):
         if self.verbose:
             print(query)
         self.backend.table_update(
-            table_name=self.table_name, uri_query=query, data=data,
+            table_name=self.table_name,
+            uri_query=query,
+            data=data,
         )
         result = list(
             self.backend.table_select(
-                table_name=self.table_name, uri_query="",
+                table_name=self.table_name,
+                uri_query="",
             )
         )
         print(result)
