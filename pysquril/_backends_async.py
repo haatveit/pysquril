@@ -15,21 +15,22 @@ Contains async implementations of:
 Requires async extras: pip install pysquril[async]
 """
 
-import datetime
 import json
 import logging
 import uuid
 
-from datetime import timedelta
-from typing import AsyncIterable, Optional, Any, Callable, Union
-from urllib.parse import unquote
-from uuid import uuid4
+from collections.abc import AsyncIterable
+from typing import Optional, Callable, Union
 
-from pysquril._backends_core import BackendCore, DatabaseBackend, AuditTransaction
+from pysquril._backends_core import BackendCore, AuditTransaction
 from pysquril._connection import async_sqlite_session, async_postgres_session
 from pysquril.exc import DataIntegrityError, OperationNotPermittedError
 from pysquril.generator import SqliteQueryGenerator, PostgresQueryGenerator
 from pysquril.utils import audit_table, audit_table_src, AUDIT_SEPARATOR, AUDIT_SUFFIX
+
+import aiosqlite
+import psycopg
+import psycopg.errors
 
 
 class AsyncGenericBackend(BackendCore):
@@ -52,16 +53,6 @@ class AsyncGenericBackend(BackendCore):
         """
         exists = False
         try:
-            # Import here to avoid requiring these dependencies if not using async
-            try:
-                import aiosqlite
-            except ImportError:
-                pass
-            try:
-                import psycopg
-            except ImportError:
-                pass
-
             current_data = []
             async for row in self.table_select(audit_table_src(table_name), ""):
                 current_data.append(row)
@@ -175,7 +166,9 @@ class AsyncGenericBackend(BackendCore):
                         work_done["updates"].append(entry)
                     if to_remove:
                         keys = list(map(lambda x: f"-{x}", to_remove.keys()))
-                        set_query = f"set={','.join(keys)}&where={primary_key}=eq.{pk_value}"
+                        set_query = (
+                            f"set={','.join(keys)}&where={primary_key}=eq.{pk_value}"
+                        )
                         await self.table_update(
                             table_name,
                             set_query,
@@ -326,9 +319,7 @@ class AsyncGenericBackend(BackendCore):
         sql = self.generator_class(f"{self._fqtn(table_name)}", uri_query, data=data)
 
         if tsc is None:
-            tsc = AuditTransaction(
-                self.requestor, sql.message, self.requestor_name
-            )
+            tsc = AuditTransaction(self.requestor, sql.message, self.requestor_name)
 
         # Build audit trail
         audit_data = []
@@ -349,7 +340,6 @@ class AsyncGenericBackend(BackendCore):
 
     async def table_alter(self, table_name: str, uri_query: str) -> dict:
         """Alter the name of a table, and its audit table (if it exists)."""
-        from pysquril.exc import OperationNotPermittedError
 
         # Protection: Cannot alter audit tables directly
         if await self._is_audit_table(table_name):
@@ -369,9 +359,6 @@ class AsyncGenericBackend(BackendCore):
 
         # Try to alter audit table too
         try:
-            import aiosqlite
-            import psycopg.errors
-
             audit_table_name = audit_table(table_name)
             sql = self.generator_class(
                 f"{self._fqtn(audit_table_name)}",
@@ -521,8 +508,6 @@ class AsyncSqliteBackend(AsyncGenericBackend):
         audit: bool = False,
     ) -> bool:
         """Insert data into table."""
-        import aiosqlite
-        import logging
 
         try:
             data = [data] if isinstance(data, dict) else data
@@ -544,7 +529,7 @@ class AsyncSqliteBackend(AsyncGenericBackend):
                                 f"insert into {table_name_fqtn} values (json(?))",
                                 (json.dumps(entry),),
                             )
-                except (aiosqlite.ProgrammingError, aiosqlite.OperationalError) as e:
+                except (aiosqlite.ProgrammingError, aiosqlite.OperationalError):
                     # Table doesn't exist - create and retry
                     async with async_sqlite_session(self.engine) as session:
                         await self.table_create(table_name, session)
@@ -562,7 +547,7 @@ class AsyncSqliteBackend(AsyncGenericBackend):
                 await self.table_insert(audit_table(table_name), audit_data)
 
             return True
-        except aiosqlite.IntegrityError as e:
+        except aiosqlite.IntegrityError:
             logging.info("Ignoring duplicate row")
             return True  # idempotent PUT
         except aiosqlite.ProgrammingError as e:
@@ -653,7 +638,7 @@ class AsyncPostgresBackend(AsyncGenericBackend):
         session,
     ) -> None:
         """Create view for cross-schema queries."""
-        await session.execute(f'create schema if not exists "all"')
+        await session.execute('create schema if not exists "all"')
         await session.execute(f"create or replace view {view_name} as {unions}")
 
     async def initialise(self) -> Optional[bool]:
@@ -739,10 +724,6 @@ class AsyncPostgresBackend(AsyncGenericBackend):
         audit: bool = False,
     ) -> bool:
         """Insert data into table."""
-        import psycopg
-        import psycopg.errors
-        import logging
-
         try:
             data = [data] if isinstance(data, dict) else data
             table_name_fqtn = self._fqtn(table_name)
@@ -763,7 +744,7 @@ class AsyncPostgresBackend(AsyncGenericBackend):
                                 f"insert into {table_name_fqtn} values (%s::jsonb)",
                                 (json.dumps(entry),),
                             )
-                except (psycopg.errors.UndefinedTable, psycopg.errors.OperationalError) as e:
+                except (psycopg.errors.UndefinedTable, psycopg.errors.OperationalError):
                     # Table doesn't exist - create and retry
                     async with async_postgres_session(self.engine) as session:
                         await self.table_create(table_name, session)
@@ -781,7 +762,7 @@ class AsyncPostgresBackend(AsyncGenericBackend):
                 await self.table_insert(audit_table(table_name), audit_data)
 
             return True
-        except psycopg.errors.UniqueViolation as e:
+        except psycopg.errors.UniqueViolation:
             logging.info("Ignoring duplicate row")
             return True  # idempotent PUT
         except psycopg.errors.SyntaxError as e:
