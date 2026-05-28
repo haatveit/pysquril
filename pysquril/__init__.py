@@ -20,20 +20,24 @@ Query parsing:
     - UriQuery: URI query parser
 
 Example (sync):
-    from pysquril import SqliteBackend
+    from pysquril import SqliteBackend, sqlite_init
 
-    backend = SqliteBackend(path=":memory:")
+    engine = sqlite_init(":memory:")
+    backend = SqliteBackend(engine)
     backend.initialise()
     backend.table_insert("users", {"id": 1, "name": "Alice"})
 
 Example (async):
-    from pysquril import AsyncSqliteBackend
+    from pysquril import AsyncSqliteBackend, async_sqlite_init
     import asyncio
 
     async def main():
-        backend = AsyncSqliteBackend(path=":memory:")
+        engine = await async_sqlite_init(":memory:")
+        backend = AsyncSqliteBackend(engine)
         await backend.initialise()
-        await backend.table_insert("users", {"id": 1, "name": "Alice"})
+        result = await backend.table_insert("users", {"id": 1, "name": "Alice"})
+        await backend.engine.close()
+        return result
 
     asyncio.run(main())
 """
